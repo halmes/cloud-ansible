@@ -1,0 +1,20 @@
+---
+- hosts: 10.x.x.x
+  gather_facts: false
+  become: true
+  become_method: sudo
+  remote_user: admin
+
+  tasks:
+  - name: open multiple ports on a host
+    ansible.posix.firewalld:
+      zone: public 
+      port: "{{ item }}"
+      permanent: true 
+      state: enabled 
+      immediate: true
+    loop:
+      - 443/tcp
+      - 5432/tcp
+      - 5433/tcp
+      - 3306/tcp
