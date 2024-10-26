@@ -1,0 +1,72 @@
+---
+- hosts: all 
+  gather_facts: false
+  become: true
+  become_method: sudo
+  remote_user: admin
+
+  tasks: 
+
+  - name: create partitions for sdb, sdc and sdd
+    parted:
+     device: "{{ item }}"
+     label: gpt
+     number: 1
+     flags: [ lvm ]
+     state: present
+     part_end: "100%"
+    loop:
+     - /dev/sdb
+     - /dev/sdc
+     - /dev/sdd
+
+  - name: Create a volume group on top of /dev/sdb with physical extent size = 64KiB
+    community.general.lvg:
+      vg: vg1
+      pvs: /dev/sdb1
+      pesize: 64K
+
+  - name: Create a volume group on top of /dev/sdc and sdd with physical extent size = 64KiB
+    community.general.lvg:
+      vg: vg2
+      pvs: /dev/sdc1,/dev/sdd1
+      pesize: 64K
+
+  - name: Create a logical volume the size of all remaining space in the volume group
+    community.general.lvol:
+      vg: vg1
+      lv: lv1
+      size: 100%VG
+      resizefs: true
+
+  - name: Create a logical volume the size of all remaining space in the volume group
+    community.general.lvol:
+      vg: vg2
+      lv: lv2
+      size: 100%VG
+      resizefs: true
+
+  - name: Create multiple directories for mount points
+    file:
+       path: /vol{{ item }}
+       state: directory
+       mode: '0755'
+    with_sequence: start=1 count=2
+
+  - name: format each lv, xfs in this case
+    filesystem:
+      fstype: xfs
+      dev: "{{ item }}"
+    loop:
+     - /dev/vg1/lv1
+     - /dev/vg2/lv2
+
+  - name: mount devices to respective mount points
+    mount:
+      fstype: xfs
+      src: "{{ item.dev }}"
+      path: "{{ item.path }}"
+      state: mounted
+    loop:
+      - { dev: '/dev/vg1/lv1', path: '/vol1' }
+      - { dev: '/dev/vg2/lv2', path: '/vol2' }
